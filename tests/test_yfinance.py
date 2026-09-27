@@ -1,3 +1,10 @@
+"""
+tests/test_yfinance.py
+
+View how the yFinance data looks like
+"""
+
+
 import yfinance as yf
 
 ticker = yf.Ticker("AAPL")

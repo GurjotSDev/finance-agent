@@ -1,3 +1,9 @@
+"""
+tests/test_edgar.py
+
+Connect to EDGAR and see how the data looks
+"""
+
 import httpx
 
 HEADERS = {"User-Agent": "Mark Mark03@gmail.com"}

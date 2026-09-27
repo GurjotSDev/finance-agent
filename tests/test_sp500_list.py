@@ -1,3 +1,10 @@
+"""
+tests/test_sp500_list.py
+
+Retrieve the S&P 500 list and ensure it looks correct
+"""
+
+
 import httpx
 import pandas as pd
 from io import StringIO

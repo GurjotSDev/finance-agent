@@ -1,3 +1,10 @@
+"""
+tests/test_client.py
+
+A mock setup to pretent to be an llm connecting to the local MCP Server and tests a tool call
+"""
+
+
 import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client

@@ -1,3 +1,10 @@
+"""
+tests/test_alpaca_mcp.py
+
+A test to connect to the Alpaca MCP server
+"""
+
+
 import asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
