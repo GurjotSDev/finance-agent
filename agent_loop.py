@@ -61,7 +61,7 @@ async def main():
                         "or latency, unless that detail is explicitly present in the tool output."
                     )
                 },
-                {"role": "user", "content": "What are today's biggest stock market movers?"},
+                {"role": "user", "content": "What should I invest in"},
             ]
             max_rounds = 5
             for round_num in range(max_rounds):

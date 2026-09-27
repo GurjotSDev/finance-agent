@@ -20,7 +20,7 @@ facts_resp = httpx.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{aapl_cik
 facts_resp.raise_for_status()
 facts = facts_resp.json()
 
-#sanity check: recent revenue filings
+# Sanity check: recent revenue filings
 revenues = facts["facts"]["us-gaap"]["Revenues"]["units"]["USD"]
 print("Most recent 3 revenue filings:")
 for entry in revenues[-3:]:
