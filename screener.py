@@ -31,6 +31,7 @@ LOOKBACK_DAYS = 63 # About 3 months of trading days
 TRADING_DAYS_PER_YEAR = 252
 BATCH_SIZE = 100
 MAX_PER_SECTOR = 2
+MIN_VOLATILITY = 0.10
 
 _client = StockHistoricalDataClient(
     os.environ["ALPACA_API_KEY"],
@@ -47,6 +48,7 @@ class ScreenResult:
     missing: list[str] = field(default_factory=list) # no data returned
     short_history: list[str] = field(default_factory=list) # too few bars
     too_volatile: int = 0 # how many were removed by max_volatility
+    too_calm: list[str] = field(default_factory=list)
 
 # Fetch closing prices for every symbol, in batches
 def fetch_closes(symbols: list[str], lookback_days: int = LOOKBACK_DAYS) -> pd.Series:
@@ -164,6 +166,12 @@ def screen(
         log.warning("Not enough history for %d symbols: %s", len(short), short)
     scored = len(metrics)
 
+    calm = metrics["volatility"] < MIN_VOLATILITY
+    too_calm = sorted(metrics.index[calm])
+    if too_calm:
+        log.warning("Abnormally low volatility, excluded: %s", too_calm)
+    metrics = metrics[~calm]
+
     too_volatile = 0
     if max_volatility is not None:
         keep = metrics["volatility"] <= max_volatility
@@ -187,6 +195,7 @@ def screen(
         missing=missing,
         short_history=short,
         too_volatile=too_volatile,
+        too_calm=too_calm,
     )
 
 if __name__ == "__main__":
@@ -197,6 +206,7 @@ if __name__ == "__main__":
     print(f"Prices as of: {result.as_of}")
     print(f"Screened {result.scored} of {result.universe_size} stocks")
     print(f"Removed as too volatile: {result.too_volatile}")
+    print(f"Removed as abnormally calm: {result.too_calm or 'none'}")
     print(f"Missing data: {result.missing or 'none'}")
     print(f"Short history: {result.short_history or 'none'}")
     print()
