@@ -32,6 +32,8 @@ TRADING_DAYS_PER_YEAR = 252
 BATCH_SIZE = 100
 MAX_PER_SECTOR = 2
 MIN_VOLATILITY = 0.10
+RECENT_DAYS = 10 # Short window for spotting stocks that only just went calm
+MIN_RECENT_VOLATILITY = 0.06 # recent window floor; see tests/check_recent_vlatility.py
 
 _client = StockHistoricalDataClient(
     os.environ["ALPACA_API_KEY"],
