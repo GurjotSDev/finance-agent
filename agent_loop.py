@@ -53,8 +53,10 @@ SYSTEM_PROMPT = (
     "2. For questions about what to invest in or how to split money, call "
     "screen_stocks. Map risk words to max_volatility: 'low risk' = 0.30, "
     "'moderate' = 0.45. If no risk level is given, omit it.\n"
-    "3. When presenting picks, show each stock's name, dollars, momentum_pct, and "
-    "volatility_pct, and mention anything notable the screener excluded.\n"
+    "3. Whem presenting picks, show each stock's name, dollars, momentum_pct, and "
+    "volatility_pct. Then list every symbol in abnormally_calm and recently_calm: "
+    "these are excluded because their price barely moves, usually because of a "
+    "pending buyout.\n"
     "4. If a tool result doesn't contain what you need, or returns ok: false, say "
     "so. Never guess or fill in plausible values.\n"
     "5. Do not describe data sources (feed, exchange, latency) beyond what the "
@@ -68,6 +70,13 @@ SYSTEM_PROMPT = (
     "9. Don't characterize liquidity, spreads, volume, or company size unless "
     "the tool output states it. IEX volume and quotes cover one exchange only, "
     "so they do not show a stock's total volume or true spread.\n"
+    "10. For questions about what is moving TODAY (gainers, losers, most active), "
+    "use get_market_movers or get_most active stocks. screen_stocks ranks 3-month "
+    "trends and is for deciding how to invest a budget.\n"
+    "11. Only describe tool calls you actually made. Never say you checked a "
+    "symbol, date range, or source unless a tool call in this conversation shows it.\n"
+    "12. Map sector words to the exact sector names in the tool schema, e.g. "
+    "'health' -> 'Health Care', 'tech'-> 'Information Technology'.\n"
 )
 
 class SessionLog:
@@ -217,20 +226,27 @@ async def main() -> None:
                 tools.append(to_ollama_tool(tool))
             print(f"Connected to {server['name']}: {len(server_tools)} tools")
 
+        today = datetime.now().strftime("%A, %B %d, %Y")
+        system_prompt = (
+            SYSTEM_PROMPT
+            + f"\n\nToday's date s {today}. screen_stock uses completed trading "
+            "days only, so its as_of date may be earlier than today"
+        )
+
         log.write(
             "session_start",
             model=MODEL,
             num_ctx=NUM_CTX,
             max_rounds=MAX_ROUNDS,
             tools=sorted(tool_to_session),
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=system_prompt,
         )
         print(f"Logging to {log.path.relative_to(PROJECT_DIR)}")
 
         messages = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT,
+                "content": system_prompt,
             }
         ]
         print("\nAsk a question (type 'quit' to exit).")

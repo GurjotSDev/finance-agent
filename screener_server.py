@@ -46,6 +46,15 @@ def screen_stocks(
         float | None,
         Field(gt=MIN_VOLATILITY, le=2.0, description=("Risk ceiling: annualized volatility as a decimal (0.30 = 30%)" "Guide: low risk 0.30, moderate 0.45. Omit for no ceiling"),),
     ] = None,
+    only_sectors: Annotated[
+        list[Sector] | None,
+        Field(
+            description=(
+                "Keep ONLY these sectors. Use this when the user asks for "
+                "stocks in a specific secor, e.g ['Health Care']"
+            )
+        ),
+    ] = None,
     exclude_sectors: Annotated[
         list[Sector] | None,
         Field(description="Sectors to leave out entirely"),
@@ -64,6 +73,7 @@ def screen_stocks(
         result = screen(
             budget=budget,
             top_n=top_n,
+            only_sectors=list(only_sectors) if only_sectors else None,
             exclude_sectors=list(exclude_sectors) if exclude_sectors else None,
             max_volatility=max_volatility,
         )
@@ -94,13 +104,15 @@ def screen_stocks(
             "excluded": {
                 "too_volatile_count": result.too_volatile,
                 "abnormally_calm": result.too_calm,
+                "recently_calm": result.recently_calm,
                 "missing_data": result.missing,
                 "short_history": result.short_history,
             },
             "settings":{
                 "lookback_trading_days": LOOKBACK_DAYS,
                 "max_volatility_pct": round(max_volatility*100, 1) if max_volatility else None,
-                "max_per_sector": MAX_PER_SECTOR,
+                "max_per_sector": result.max_per_sector,
+                "only_sector": list(only_sectors) if only_sectors else [],
                 "excluded_sectors": list(exclude_sectors) if exclude_sectors else [],
             },
             "data_notes": (

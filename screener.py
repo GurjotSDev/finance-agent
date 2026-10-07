@@ -33,7 +33,7 @@ BATCH_SIZE = 100
 MAX_PER_SECTOR = 2
 MIN_VOLATILITY = 0.10
 RECENT_DAYS = 10 # Short window for spotting stocks that only just went calm
-MIN_RECENT_VOLATILITY = 0.06 # recent window floor; see tests/check_recent_vlatility.py
+MIN_RECENT_VOLATILITY = 0.06 # recent window floor; 
 
 _client = StockHistoricalDataClient(
     os.environ["ALPACA_API_KEY"],
@@ -51,6 +51,8 @@ class ScreenResult:
     short_history: list[str] = field(default_factory=list) # too few bars
     too_volatile: int = 0 # how many were removed by max_volatility
     too_calm: list[str] = field(default_factory=list)
+    recently_calm: list[str] = field(default_factory=list)
+    max_per_sector: int = MAX_PER_SECTOR
 
 # Fetch closing prices for every symbol, in batches
 def fetch_closes(symbols: list[str], lookback_days: int = LOOKBACK_DAYS) -> pd.Series:
@@ -74,7 +76,7 @@ def fetch_closes(symbols: list[str], lookback_days: int = LOOKBACK_DAYS) -> pd.S
         log.info("Fetched symbols %d-%d of %d", i+1, i+len(batch), len(symbols))
 
     if not frames:
-        raise RuntimeError("Alpaca returned no price data al all")
+        raise RuntimeError("Alpaca returned no price data at all")
 
     closes = pd.concat(frames).sort_index()
 
@@ -104,11 +106,15 @@ def score_stocks(closes: pd.Series, lookback_days: int = LOOKBACK_DAYS):
     daily_returns = window / by_symbol.shift(1) -1
     daily_vol = daily_returns.groupby(level="symbol").std()
 
+    recent_returns = daily_returns.groupby(level="symbol").tail(RECENT_DAYS)
+    recent_vol = recent_returns.groupby(level="symbol").std()
+
     metrics = pd.DataFrame(
         {
             "last_close": last,
             "momentum": last / first - 1,
             "volatility": daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR), 
+            "recent_volatility": recent_vol * math.sqrt(TRADING_DAYS_PER_YEAR)
         }
     )
     metrics["volatility"] = metrics["volatility"].replace(0, float("nan"))
@@ -146,14 +152,23 @@ def allocate(picks: pd.DataFrame, budget:float) -> pd.Series:
 def screen(
         budget: float,
         top_n: int=5,
+        only_sectors: list[str] | None = None,
         exclude_sectors: list[str] | None = None,
         max_volatility: float | None = None,
         lookback_days: int = LOOKBACK_DAYS,
 ) -> ScreenResult:
     universe = get_sp500()
+    if only_sectors:
+        wanted = {s.strip().lower() for s in only_sectors}
+        universe = universe[universe["GICS Sector"].str.lower().isin(wanted)]
+
     if exclude_sectors:
         excluded = {s.strip().lower() for s in exclude_sectors}
         universe = universe[~universe["GICS Sector"].str.lower().isin(excluded)]
+
+    max_per_sector = MAX_PER_SECTOR
+    if only_sectors:
+        max_per_sector = max(MAX_PER_SECTOR, math.ceil(top_n / len(only_sectors)))
 
     symbols = universe["Symbol"].tolist()
     closes = fetch_closes(symbols, lookback_days)
@@ -174,6 +189,12 @@ def screen(
         log.warning("Abnormally low volatility, excluded: %s", too_calm)
     metrics = metrics[~calm]
 
+    recent_calm = metrics["recent_volatility"] < MIN_RECENT_VOLATILITY
+    recently_calm = sorted(metrics.index[recent_calm])
+    if recently_calm:
+        log.warning("Abnormally calm in the last %d days, excluded: %s", RECENT_DAYS, recently_calm)
+    metrics = metrics[~recent_calm]
+
     too_volatile = 0
     if max_volatility is not None:
         keep = metrics["volatility"] <= max_volatility
@@ -184,7 +205,7 @@ def screen(
     ranked = metrics[metrics["score"] > 0].join(
         universe.set_index("Symbol")[["Security", "GICS Sector"]]
     )
-    picks = pick_diversified(ranked, top_n, MAX_PER_SECTOR)
+    picks = pick_diversified(ranked, top_n, max_per_sector)
     if not picks.empty:
         picks["dollars"] = allocate(picks, budget)
 
@@ -198,6 +219,8 @@ def screen(
         short_history=short,
         too_volatile=too_volatile,
         too_calm=too_calm,
+        recently_calm=recently_calm,
+        max_per_sector=max_per_sector
     )
 
 if __name__ == "__main__":
@@ -209,6 +232,7 @@ if __name__ == "__main__":
     print(f"Screened {result.scored} of {result.universe_size} stocks")
     print(f"Removed as too volatile: {result.too_volatile}")
     print(f"Removed as abnormally calm: {result.too_calm or 'none'}")
+    print(f"Removed as recently calm: {result.recently_calm or 'none'}")
     print(f"Missing data: {result.missing or 'none'}")
     print(f"Short history: {result.short_history or 'none'}")
     print()
